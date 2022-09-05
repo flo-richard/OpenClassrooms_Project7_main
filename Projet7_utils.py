@@ -10,6 +10,16 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import train_test_split
 
+from sklearn.model_selection import GridSearchCV
+from sklearn.metrics import roc_auc_score
+
+from imblearn.under_sampling import RandomUnderSampler
+from imblearn.over_sampling import RandomOverSampler
+from sklearn.linear_model import LogisticRegression
+from sklearn.svm import SVC
+from sklearn.ensemble import RandomForestClassifier
+
+
 
 def diff_lists(L1, L2):
     """Returns the elements that are in a list L1 but not in another list L2, and vice versa"""
@@ -120,7 +130,28 @@ def preprocess_data(X, y, list_cat):
     
     
     return X_train, X_test, y_train, y_test
-    
+
+
+
+def train_model_predict(model, par_grid, X_train, y_train, X_test):
+
+    model_train = GridSearchCV(
+        model,
+        param_grid=par_grid,
+        scoring='roc_auc',
+        n_jobs=4,
+        verbose=1
+    )
+
+    model_train.fit(X_train.values, y_train.values)
+
+    print('Best hyperparams: ', model_train.best_params_)
+    print('Best mean score: ', model_train.best_score_)
+    print('std: ', model_train.cv_results_['std_test_score'][model_train.best_index_])
+
+    model_predict = model_train.predict(X_test.values)
+
+    return model_predict
     
     
     
