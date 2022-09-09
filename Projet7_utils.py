@@ -42,12 +42,43 @@ def cat_to_binary(series):
     return series
 
 
+def set_outlier_nan(series):
+
+    #print(series)
+
+    try:
+        series.sort_values(ascending=True)
+        Q1 = series.quantile(0.25) #First quartile
+        Q3 = series.quantile(0.75) #Third quartile
+
+        #print('Q1 = ', Q1)    
+        #print('Q3 = ', Q3)
+
+        iqr = Q3 - Q1  #Interquartile range
+        lower = Q1 - 1.5*iqr #lower bound
+        upper = Q3 + 1.5*iqr  #upper bound
+        
+        for i in range(len(series)):    #loop over the elements in the series
+            if series.iloc[i] > upper or series.iloc[i] < lower:  #if the element is out of bounds                
+                series.iloc[i]=float('nan')  #set to NaN
+                
+        return series
+    
+    except TypeError:
+        return series
+
+
+
+
 def imput(df, L_features, func):
     
     imputer = SimpleImputer(strategy=func)
     df[L_features] = imputer.fit_transform(df[L_features])
     
     return pd.DataFrame(df[L_features], columns=L_features)
+
+
+
 
 
 
@@ -97,8 +128,12 @@ def preprocess_data(X, y, list_cat):
     pipe_cat = Pipeline(steps=steps_cat)
     pipe_cat.fit(X_cat_train, y_train)
 
+
     X_cat_train = pd.DataFrame(pipe_cat.transform(X_cat_train).todense(), columns=names_cat)
     X_cat_test = pd.DataFrame(pipe_cat.transform(X_cat_test).todense(), columns=names_cat)
+
+
+
     
     
     
