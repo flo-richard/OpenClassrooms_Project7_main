@@ -168,12 +168,12 @@ def preprocess_data(X, y, list_cat):
 
 
 
-def train_model_predict(model, par_grid, X_train, y_train, X_test):
+def train_model(model, par_grid, X_train, y_train, scorer):
 
     model_train = GridSearchCV(
         model,
         param_grid=par_grid,
-        scoring='roc_auc',
+        scoring=scorer,
         n_jobs=4,
         verbose=1
     )
@@ -184,9 +184,32 @@ def train_model_predict(model, par_grid, X_train, y_train, X_test):
     print('Best mean score: ', model_train.best_score_)
     print('std: ', model_train.cv_results_['std_test_score'][model_train.best_index_])
 
-    model_predict = model_train.predict(X_test.values)
+    return model_train
 
-    return model_predict
+    #model_predict = model_train.predict(X_test.values)
+
+    #return model_predict
+
+
+
+def score_func(y_true, y_pred):
+
+    y = pd.concat([y_true, pd.DataFrame(y_pred, index=y_true.index, columns=['Prediction'])], axis=1)
+    #display(y)
+
+    A = y[(y.TARGET==0) & (y.Prediction==0)].count()[0]
+    B = y[(y.TARGET==1) & (y.Prediction==0)].count()[0] # major error, big coeff
+    C = y[(y.TARGET==0) & (y.Prediction==1)].count()[0] # minor error, small coeff
+    D = y[(y.TARGET==1) & (y.Prediction==1)].count()[0]
+    print("A :", A)
+    print("B :", B)
+    print("C :", C)
+    print("D :", D)
+    #print(A + B + C + D)
+
+    score = (.8*B + .2*C) / (A + B + C + D)
+    return score
+
     
     
     
