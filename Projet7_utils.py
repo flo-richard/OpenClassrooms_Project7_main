@@ -175,7 +175,8 @@ def train_model(model, par_grid, X_train, y_train, scorer):
         param_grid=par_grid,
         scoring=scorer,
         n_jobs=4,
-        verbose=1
+        verbose=2,
+        error_score='raise'
     )
 
     model_train.fit(X_train.values, y_train.values)
@@ -194,21 +195,21 @@ def train_model(model, par_grid, X_train, y_train, scorer):
 
 def score_func(y_true, y_pred):
 
-    y = pd.concat([y_true, pd.DataFrame(y_pred, index=y_true.index, columns=['Prediction'])], axis=1)
+    y = pd.concat([pd.DataFrame(y_true, columns=['TARGET']).reset_index(), pd.DataFrame(y_pred, columns=['Prediction'])], axis=1)
     #display(y)
 
-    A = y[(y.TARGET==0) & (y.Prediction==0)].count()[0]
-    B = y[(y.TARGET==1) & (y.Prediction==0)].count()[0] # major error, big coeff
-    C = y[(y.TARGET==0) & (y.Prediction==1)].count()[0] # minor error, small coeff
-    D = y[(y.TARGET==1) & (y.Prediction==1)].count()[0]
+    A = y[(y.TARGET==0) & (y.Prediction==0)].count()[0] # correctly predicted as able to pay
+    B = y[(y.TARGET==1) & (y.Prediction==0)].count()[0] # predicted as able to pay, but unable in reality -> major error, big coeff
+    C = y[(y.TARGET==0) & (y.Prediction==1)].count()[0] # predicted as unable to pay, but able in reality -> minor error, small coeff
+    D = y[(y.TARGET==1) & (y.Prediction==1)].count()[0] # correctly predicted as unable to pay
     print("A :", A)
     print("B :", B)
     print("C :", C)
     print("D :", D)
     #print(A + B + C + D)
 
-    score = (.8*B + .2*C) / (A + B + C + D)
-    return score
+    weighted_error = (.8*B + .2*C) / (A + B + C + D)
+    return weighted_error
 
     
     
