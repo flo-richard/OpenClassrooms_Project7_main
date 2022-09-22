@@ -196,19 +196,20 @@ def train_model(model, par_grid, X_train, y_train, scorer):
 def score_func(y_true, y_pred):
 
     y = pd.concat([pd.DataFrame(y_true, columns=['TARGET']).reset_index(), pd.DataFrame(y_pred, columns=['Prediction'])], axis=1)
-    #display(y)
 
     A = y[(y.TARGET==0) & (y.Prediction==0)].count()[0] # correctly predicted as able to pay
     B = y[(y.TARGET==1) & (y.Prediction==0)].count()[0] # predicted as able to pay, but unable in reality -> major error, big coeff
     C = y[(y.TARGET==0) & (y.Prediction==1)].count()[0] # predicted as unable to pay, but able in reality -> minor error, small coeff
     D = y[(y.TARGET==1) & (y.Prediction==1)].count()[0] # correctly predicted as unable to pay
-    print("A :", A)
-    print("B :", B)
-    print("C :", C)
-    print("D :", D)
-    #print(A + B + C + D)
 
-    weighted_error = (.8*B + .2*C) / (A + B + C + D)
+    print("Correctly predicted as able to pay :", A)
+    print("Predicted as able to pay, but unable in reality :", B)
+    print("Predicted as unable to pay, but able in reality :", C)
+    print("Correctly predicted as unable to pay :", D)
+
+    weighted_error = (.85*B + .15*C) / (A + B + C + D)
+
+    print('Weighted error: ', weighted_error)
     return weighted_error
 
     
