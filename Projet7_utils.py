@@ -6,18 +6,22 @@ import sklearn
 import imblearn
 
 from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.preprocessing import OneHotEncoder, StandardScaler, LabelEncoder
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import train_test_split
 
 from sklearn.model_selection import GridSearchCV
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_auc_score, fbeta_score
 
-from imblearn.under_sampling import RandomUnderSampler
-from imblearn.over_sampling import RandomOverSampler
 from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
 from sklearn.ensemble import RandomForestClassifier
+
+from imblearn.under_sampling import RandomUnderSampler
+from imblearn.over_sampling import RandomOverSampler
+from imblearn.over_sampling import SMOTE
+from imblearn.pipeline import Pipeline as imbpipe
+
 
 
 
@@ -78,8 +82,24 @@ def imput(df, L_features, func):
     return pd.DataFrame(df[L_features], columns=L_features)
 
 
+def categorize(df, list_cat):
+
+    for col in list_cat:
+        df[col] = pd.Categorical(df[col])
+        df[col] = LabelEncoder().fit_transform(df[col])
+        df[col] = df[col].astype('category')
+
+    return df
 
 
+def set_0_to_1(series):
+
+    series = series.replace({
+        0: 1,
+        1: 0
+    })
+
+    return series
 
 
 def preprocess_data(X, y, list_cat):
@@ -193,34 +213,67 @@ def train_model(model, par_grid, X_train, y_train, scorer):
 
 
 
-def score_func(y_true, y_pred):
+def score_func(y_true, y_pred, beta):
 
     y = pd.concat([pd.DataFrame(y_true, columns=['TARGET']).reset_index(), pd.DataFrame(y_pred, columns=['Prediction'])], axis=1)
+    #display(y)
 
-    A = y[(y.TARGET==0) & (y.Prediction==0)].count()[0] # correctly predicted as able to pay
-    B = y[(y.TARGET==1) & (y.Prediction==0)].count()[0] # predicted as able to pay, but unable in reality -> major error, big coeff
-    C = y[(y.TARGET==0) & (y.Prediction==1)].count()[0] # predicted as unable to pay, but able in reality -> minor error, small coeff
-    D = y[(y.TARGET==1) & (y.Prediction==1)].count()[0] # correctly predicted as unable to pay
+    A = y[(y.TARGET==1) & (y.Prediction==1)].count()[0] # correctly predicted as able to pay
+    B = y[(y.TARGET==0) & (y.Prediction==1)].count()[0] # predicted as able to pay, but unable in reality -> major error, big coeff
+    C = y[(y.TARGET==1) & (y.Prediction==0)].count()[0] # predicted as unable to pay, but able in reality -> minor error, small coeff
+    D = y[(y.TARGET==0) & (y.Prediction==0)].count()[0] # correctly predicted as unable to pay
 
-    print("Correctly predicted as able to pay :", A)
-    print("Predicted as able to pay, but unable in reality :", B)
+    print('Total count: ', len(y))
+    print("Correctly predicted as able to pay :", A, "/", y.loc[y['TARGET']==1]['TARGET'].count())
     print("Predicted as unable to pay, but able in reality :", C)
-    print("Correctly predicted as unable to pay :", D)
+    print("Correctly predicted as unable to pay :", D, "/", y.loc[y['TARGET']==0]['TARGET'].count())
+    print("Predicted as able to pay, but unable in reality :", B)    
+    
+    
+    #weighted_error = (.8*B + .2*C) / (A + B + C + D)
+    #weighted_error = .8*B/(A+C) + .2*C/(B+D)
 
-    weighted_error = (.85*B + .15*C) / (A + B + C + D)
+    score = fbeta_score(y_true, y_pred, beta=beta)
+    print("beta: ", beta)
+    print('fbeta score: ', score)
+    return score
 
-    print('Weighted error: ', weighted_error)
-    return weighted_error
+    
+    
+    
+    
+    
+    
+    
+def train_try(X, y, classifier, par_grid, scorer):
 
-    
-    
-    
-    
-    
-    
-    
-    
-    
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=0.8, random_state=42)
+
+    model = imbpipe(steps=[
+        ('OverSampling', RandomOverSampler(random_state=42)),
+        #('UnderSampling', RandomUnderSampler(random_state=42)),
+        ('Scaling', StandardScaler()),
+        ('classification', classifier)
+    ])
+
+    model_trained = GridSearchCV(
+        model,
+        param_grid=par_grid,
+        scoring=scorer,
+        verbose=1,
+        n_jobs=4
+        )
+
+    model_trained.fit(X_train, y_train)
+
+    print('Best hyperparams: ', model_trained.best_params_)
+    print('Best mean score: ', model_trained.best_score_)
+    print('std: ', model_trained.cv_results_['std_test_score'][model_trained.best_index_])
+
+    return model_trained, X_test, y_test
+
+
     
     
     
