@@ -82,13 +82,37 @@ def imput(df, L_features, func):
     return pd.DataFrame(df[L_features], columns=L_features)
 
 
-def categorize(df, list_cat):
+def categorize(df, list_cat_bin, list_dict_bin, list_cat_ordinal, list_dict_ordinal, list_cat_nominal):
 
-    for col in list_cat:
-        df[col] = pd.Categorical(df[col])
-        df[col] = LabelEncoder().fit_transform(df[col])
-        df[col] = df[col].astype('category')
+    #BINARY FEATURES
+    for i in range(len(list_cat_bin)):
+        
+        #df[list_cat_bin[i]] = pd.Categorical(df[col], ordered=False)
+        #df[col] = LabelEncoder().fit_transform(df[col])
+        #df[col] = df[col].astype('category')
 
+        df[list_cat_bin[i]] = df[list_cat_bin[i]].replace(list_dict_bin[i])
+        df[list_cat_bin[i]] = df[list_cat_bin[i]].astype('category')
+
+    #ORDINAL FEATURES
+    for i in range(len(list_cat_ordinal)):
+        df[list_cat_ordinal[i]] = df[list_cat_ordinal[i]].replace(list_dict_ordinal[i])
+        df[list_cat_ordinal[i]] = df[list_cat_ordinal[i]].astype('category')
+
+    #NOMINAL FEATURES -> OHE
+
+    for col in list_cat_nominal:
+
+        ohe = OneHotEncoder(sparse=False)
+        df_nominal_temp = pd.DataFrame(ohe.fit_transform(df[col].values.reshape(-1, 1)))
+
+        #display(df_nominal_temp)
+        #print(ohe.get_feature_names_out([col]))
+        df_nominal_temp.columns = ohe.get_feature_names_out([col])
+        df_nominal_temp = df_nominal_temp.set_index(df.index)
+        df = pd.concat([df, df_nominal_temp], axis=1)
+    
+    df = df.drop(list_cat_nominal, axis=1)
     return df
 
 
