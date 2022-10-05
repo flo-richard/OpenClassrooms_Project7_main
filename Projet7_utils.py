@@ -22,6 +22,10 @@ from imblearn.over_sampling import RandomOverSampler
 from imblearn.over_sampling import SMOTE
 from imblearn.pipeline import Pipeline as imbpipe
 
+import lime
+from lime import lime_tabular
+import random
+
 
 
 
@@ -32,18 +36,6 @@ def diff_lists(L1, L2):
     diff_21 = list(set(L2) - set(L1))  #in L2 but not in L1
     
     return diff_12, diff_21
-
-
-
-
-def cat_to_binary(series):
-    
-    L_categ = series.unique()
-        
-    for count, value in enumerate(L_categ):        
-        series = series.replace(value, count)
-            
-    return series
 
 
 def set_outlier_nan(series):
@@ -77,43 +69,35 @@ def set_outlier_nan(series):
 def imput(df, L_features, func):
     
     imputer = SimpleImputer(strategy=func)
-    df[L_features] = imputer.fit_transform(df[L_features])
+    imputer.fit(df[L_features])
+    df[L_features] = imputer.transform(df[L_features])
     
-    return pd.DataFrame(df[L_features], columns=L_features)
+    return pd.DataFrame(df[L_features], columns=L_features), imputer
 
 
-def categorize(df, list_cat_bin, list_dict_bin, list_cat_ordinal, list_dict_ordinal, list_cat_nominal):
+def label_enc(df, list_feat_idx):
 
-    #BINARY FEATURES
-    for i in range(len(list_cat_bin)):
+    classes_names_dict = {} 
+    transformers_dict = {}
+
+    for feature in list_feat_idx:
+        le = LabelEncoder()
+        le.fit(df.iloc[:, [feature]].values.ravel())
+
+        classes_names_dict[feature] = le.classes_
+
+        df.iloc[:, [feature]] = le.transform(df.iloc[:, [feature]].values.ravel())
+        #le_name = 'LE_' + df.columns.tolist()[feature]
+
+        transformers_dict[df.columns.tolist()[feature]] = le
+        df.iloc[:, [feature]] = df.iloc[:, [feature]].astype('category')
+
         
-        #df[list_cat_bin[i]] = pd.Categorical(df[col], ordered=False)
-        #df[col] = LabelEncoder().fit_transform(df[col])
-        #df[col] = df[col].astype('category')
 
-        df[list_cat_bin[i]] = df[list_cat_bin[i]].replace(list_dict_bin[i])
-        df[list_cat_bin[i]] = df[list_cat_bin[i]].astype('category')
+    return df, classes_names_dict, transformers_dict
 
-    #ORDINAL FEATURES
-    for i in range(len(list_cat_ordinal)):
-        df[list_cat_ordinal[i]] = df[list_cat_ordinal[i]].replace(list_dict_ordinal[i])
-        df[list_cat_ordinal[i]] = df[list_cat_ordinal[i]].astype('category')
 
-    #NOMINAL FEATURES -> OHE
 
-    for col in list_cat_nominal:
-
-        ohe = OneHotEncoder(sparse=False)
-        df_nominal_temp = pd.DataFrame(ohe.fit_transform(df[col].values.reshape(-1, 1)))
-
-        #display(df_nominal_temp)
-        #print(ohe.get_feature_names_out([col]))
-        df_nominal_temp.columns = ohe.get_feature_names_out([col])
-        df_nominal_temp = df_nominal_temp.set_index(df.index)
-        df = pd.concat([df, df_nominal_temp], axis=1)
-    
-    df = df.drop(list_cat_nominal, axis=1)
-    return df
 
 
 def set_0_to_1(series):
@@ -126,153 +110,14 @@ def set_0_to_1(series):
     return series
 
 
-def preprocess_data(X, y, list_cat):
-    
-    
-    
-    X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=0.8, random_state=42)
-    
-    names_cont = X.drop(list_cat, axis=1).columns.tolist()
-    
-    indices_train = X_train.index
-    indices_test = X_test.index
-    
-    X_cat_names = X[list_cat]
-    
-    
-    X_cat_train = X_train[list_cat].values
-    X_cat_test = X_test[list_cat].values
 
-    X_cont_train = X_train.drop(list_cat, axis=1).values
-    X_cont_test = X_test.drop(list_cat, axis=1).values
-    
-        # categ variables
-        
-    names_cat = []
-    
-    imputer_cat = SimpleImputer(strategy='most_frequent')
-    imputer_cat.fit(X_cat_train)
-    
-    X_cat_train = pd.DataFrame(imputer_cat.transform(X_cat_train), columns=X_cat_names.columns.tolist())
-    X_cat_test = pd.DataFrame(imputer_cat.transform(X_cat_test), columns=X_cat_names.columns.tolist())
-    
-    X_cat_names = pd.DataFrame(imputer_cat.transform(X_cat_names), columns=X_cat_names.columns.tolist())
-    
-    for i in list_cat:
-        #print("i :", i)
-        for j in X_cat_names[i].unique():
-            #print("j :", j)
-            names_cat.append(i + ':' + j)
-    
-    steps_cat = [
-        ('OHE', OneHotEncoder()),
-        ('Scaling', StandardScaler(with_mean=False))
-    ]
-
-    pipe_cat = Pipeline(steps=steps_cat)
-    pipe_cat.fit(X_cat_train, y_train)
+def train_model(data, classifier, par_grid, scorer):
 
 
-    X_cat_train = pd.DataFrame(pipe_cat.transform(X_cat_train).todense(), columns=names_cat)
-    X_cat_test = pd.DataFrame(pipe_cat.transform(X_cat_test).todense(), columns=names_cat)
-
-
-
-    
-    
-    
-        # continuous variables
-    
-    names_cont = X.drop(list_cat, axis=1).columns.tolist()
-
-    
-    steps_cont = [
-        ('imputer', SimpleImputer(strategy='mean')),
-        ('Scaling', StandardScaler())
-    ]
-
-    pipe_cont = Pipeline(steps=steps_cont)
-    pipe_cont.fit(X_cont_train, y_train)
-
-    X_cont_train = pd.DataFrame(pipe_cont.transform(X_cont_train), columns=names_cont)
-    X_cont_test = pd.DataFrame(pipe_cont.transform(X_cont_test), columns=names_cont)
-    
-    
-    
-        # aggregate cat and cont
-    
-    X_train = pd.concat([X_cont_train, X_cat_train], axis=1)
-    X_train = X_train.set_index(indices_train)
-    
-    X_test = pd.concat([X_cont_test, X_cat_test], axis=1)
-    X_test = X_test.set_index(indices_test)
-    
-    
-    return X_train, X_test, y_train, y_test
-
-
-
-def train_model(model, par_grid, X_train, y_train, scorer):
-
-    model_train = GridSearchCV(
-        model,
-        param_grid=par_grid,
-        scoring=scorer,
-        n_jobs=4,
-        verbose=2,
-        error_score='raise'
-    )
-
-    model_train.fit(X_train.values, y_train.values)
-
-    print('Best hyperparams: ', model_train.best_params_)
-    print('Best mean score: ', model_train.best_score_)
-    print('std: ', model_train.cv_results_['std_test_score'][model_train.best_index_])
-
-    return model_train
-
-    #model_predict = model_train.predict(X_test.values)
-
-    #return model_predict
-
-
-
-def score_func(y_true, y_pred, beta):
-
-    y = pd.concat([pd.DataFrame(y_true, columns=['TARGET']).reset_index(), pd.DataFrame(y_pred, columns=['Prediction'])], axis=1)
-    #display(y)
-
-    A = y[(y.TARGET==1) & (y.Prediction==1)].count()[0] # correctly predicted as able to pay
-    B = y[(y.TARGET==0) & (y.Prediction==1)].count()[0] # predicted as able to pay, but unable in reality -> major error, big coeff
-    C = y[(y.TARGET==1) & (y.Prediction==0)].count()[0] # predicted as unable to pay, but able in reality -> minor error, small coeff
-    D = y[(y.TARGET==0) & (y.Prediction==0)].count()[0] # correctly predicted as unable to pay
-
-    print('Total count: ', len(y))
-    print("Correctly predicted as able to pay :", A, "/", y.loc[y['TARGET']==1]['TARGET'].count())
-    print("Predicted as unable to pay, but able in reality :", C)
-    print("Correctly predicted as unable to pay :", D, "/", y.loc[y['TARGET']==0]['TARGET'].count())
-    print("Predicted as able to pay, but unable in reality :", B)    
-    
-    
-    #weighted_error = (.8*B + .2*C) / (A + B + C + D)
-    #weighted_error = .8*B/(A+C) + .2*C/(B+D)
-
-    score = fbeta_score(y_true, y_pred, beta=beta)
-    print("beta: ", beta)
-    print('fbeta score: ', score)
-    return score
-
-    
-    
-    
-    
-    
-    
-    
-def train_try(X, y, classifier, par_grid, scorer):
-
-
-    X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=0.8, random_state=42)
+    X_train = data['X_train']
+    X_test = data['X_test']
+    y_train = data['y_train']
+    y_test = data['y_test']
 
     model = imbpipe(steps=[
         ('OverSampling', RandomOverSampler(random_state=42)),
@@ -295,17 +140,59 @@ def train_try(X, y, classifier, par_grid, scorer):
     print('Best mean score: ', model_trained.best_score_)
     print('std: ', model_trained.cv_results_['std_test_score'][model_trained.best_index_])
 
-    return model_trained, X_test, y_test
+    return model_trained
 
 
+
+
+def score_func(y_true, y_pred, beta):
+
+    y = pd.concat([pd.DataFrame(y_true, columns=['TARGET']).reset_index(), pd.DataFrame(y_pred, columns=['Prediction'])], axis=1)
+    #display(y)
+
+    A = y[(y.TARGET==1) & (y.Prediction==1)].count()[0] # correctly predicted as able to pay
+    B = y[(y.TARGET==0) & (y.Prediction==1)].count()[0] # predicted as able to pay, but unable in reality -> major error, big coeff
+    C = y[(y.TARGET==1) & (y.Prediction==0)].count()[0] # predicted as unable to pay, but able in reality -> minor error, small coeff
+    D = y[(y.TARGET==0) & (y.Prediction==0)].count()[0] # correctly predicted as unable to pay
+
+    print('Total count: ', len(y))
+    print("Correctly predicted as able to pay :", A, "/", y.loc[y['TARGET']==1]['TARGET'].count())
+    print("Predicted as unable to pay, but able in reality :", C)
+    print("Correctly predicted as unable to pay :", D, "/", y.loc[y['TARGET']==0]['TARGET'].count())
+    print("Predicted as able to pay, but unable in reality :", B)    
     
     
-    
-    
-    
-    
-    
-    
-    
-    
-    
+    score = fbeta_score(y_true, y_pred, beta=beta)
+    print("beta: ", beta)
+    print('fbeta score: ', score)
+    return score
+
+
+
+
+
+def local_feat_imp(idx, X_train, X_test, y_test, categorical_features_idxs, categorical_names_dict, model):
+
+    explainer = lime_tabular.LimeTabularExplainer(
+        X_train.values,
+        mode='classification',
+        feature_names=X_train.columns.to_list(),
+        categorical_features=categorical_features_idxs,
+        categorical_names=categorical_names_dict,
+        class_names=[0, 1]
+    )
+
+    pred = model.predict(X_test.loc[idx].values.reshape(1, -1))
+
+    print("Prediction : ", pred)
+    print("Actual :     ", y_test[idx])
+
+    exp = explainer.explain_instance(
+        X_test.loc[idx],
+        model.predict_proba,
+        num_features=6
+    )
+
+    exp.show_in_notebook()
+
+    return exp.as_map()[1]
