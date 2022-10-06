@@ -22,19 +22,27 @@ Model = ScoringModel()
 @app.post('/getPrediction')
 async def get_prediction(info : Request):
     req_info = await info.json()
+    df = pd.DataFrame([req_info])
+
+    #print(req_info)
+
     # Ajouter les fonctions qui font le traitement ici
-    # Pour l'instant on renvoit l'info telle qu'on la reçoit
+    print('Preprocessing...')
+    df_scaled, req_info = Model.preprocessing(df, req_info)
+    print('Preprocessing ok')
 
-    print(req_info)
+    print('Computing prediction...')
+    prediction = Model.predict(df_scaled)        
+    print('Prediction :', prediction)
 
-    req_info_new = Model.preprocessing(req_info)
-
-    print('req info new: ', req_info_new)
-    test_return = {
-         "status": "SUCCESS",
-         "data": req_info_new
-        }
-    #plop.update()
-    print('test return : ', test_return)
+    print('Computing explainer...')
+    expl_details = Model.explain_prediction(df_scaled)
+    print('Done')
     
-    return test_return
+
+    return {
+        'Status': 'Success',
+        'User info': req_info,
+        'Prediction': int(prediction),
+        'Explainer': expl_details.to_dict('list')
+    }
