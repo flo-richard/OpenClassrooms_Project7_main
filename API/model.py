@@ -80,3 +80,4 @@ class ScoringModel:
         )
 
         return pd.DataFrame(expl_details.as_map()[1], columns=['Feature_idx', 'Scaled_value'])
+        
