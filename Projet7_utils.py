@@ -195,4 +195,4 @@ def local_feat_imp(idx, X_train, X_test, y_test, categorical_features_idxs, cate
 
     exp.show_in_notebook()
 
-    return exp.as_map()[1]
+    return exp
