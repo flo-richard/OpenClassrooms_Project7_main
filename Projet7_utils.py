@@ -38,9 +38,19 @@ def diff_lists(L1, L2):
     return diff_12, diff_21
 
 
-def set_outlier_nan(series):
+def set_0_to_1(series):
+    """Swaps 0s and 1s in a series"""
+    series = series.replace({
+        0: 1,
+        1: 0
+    })
 
-    #print(series)
+    return series
+
+
+def set_outlier_nan(series):
+    """identifies outliers in a series via interquartile analysis and sets the values to NaN """
+    
 
     try:
         series.sort_values(ascending=True)
@@ -67,6 +77,7 @@ def set_outlier_nan(series):
 
 
 def imput(df, L_features, func):
+    """Trains an imputer on a list of features. Imputes the values with a given method (mean, median, most frequent, etc)"""
     
     imputer = SimpleImputer(strategy=func)
     imputer.fit(df[L_features])
@@ -76,9 +87,10 @@ def imput(df, L_features, func):
 
 
 def label_enc(df, list_feat_idx):
+    """Trains label encoders for categorical variables. Saves them in a dictionary and returns it, as well as a map of the labels"""
 
-    classes_names_dict = {} 
-    transformers_dict = {}
+    classes_names_dict = {} # label map
+    transformers_dict = {} # label encoders
 
     for feature in list_feat_idx:
         le = LabelEncoder()
@@ -87,10 +99,9 @@ def label_enc(df, list_feat_idx):
         classes_names_dict[feature] = le.classes_
 
         df.iloc[:, [feature]] = le.transform(df.iloc[:, [feature]].values.ravel())
-        #le_name = 'LE_' + df.columns.tolist()[feature]
 
         transformers_dict[df.columns.tolist()[feature]] = le
-        df.iloc[:, [feature]] = df.iloc[:, [feature]].astype('category')
+        df.iloc[:, [feature]] = df.iloc[:, [feature]].astype('category') # set the feature as a category in the dataframe
 
         
 
@@ -100,31 +111,35 @@ def label_enc(df, list_feat_idx):
 
 
 
-def set_0_to_1(series):
-
-    series = series.replace({
-        0: 1,
-        1: 0
-    })
-
-    return series
-
 
 
 def train_model(data, classifier, par_grid, scorer):
-
+    """Optimizes a classifier with a GridSearch + corss validation. Trains and returns it
+    data : dictionary containing the training and testing sets (input and target)
+    classifier : model to train
+    par_grid : grid of parameters to test in the GridSearch
+    scorer : metric to evaluate the model performances"""
 
     X_train = data['X_train']
     X_test = data['X_test']
     y_train = data['y_train']
     y_test = data['y_test']
 
-    model = imbpipe(steps=[
-        ('OverSampling', RandomOverSampler(random_state=42)),
-        #('UnderSampling', RandomUnderSampler(random_state=42)),
-        ('Scaling', StandardScaler()),
-        ('classification', classifier)
-    ])
+    if classifier == LogisticRegression(): # if the model is not tree based, the data need to be scaled
+        model = imbpipe(steps=[
+            ('OverSampling', RandomOverSampler(random_state=42)),
+            #('UnderSampling', RandomUnderSampler(random_state=42)),
+            ('Scaling', StandardScaler()),
+            ('classification', classifier)
+        ])
+
+    else : # if it is tree based, the data do not need to be scaled
+        model = imbpipe(steps=[
+            ('OverSampling', RandomOverSampler(random_state=42)),
+            #('UnderSampling', RandomUnderSampler(random_state=42)),
+            #('Scaling', StandardScaler()),
+            ('classification', classifier)
+        ])
 
     model_trained = GridSearchCV(
         model,
@@ -132,7 +147,7 @@ def train_model(data, classifier, par_grid, scorer):
         scoring=scorer,
         verbose=1,
         n_jobs=4
-        )
+    )
 
     model_trained.fit(X_train, y_train)
 
@@ -146,6 +161,7 @@ def train_model(data, classifier, par_grid, scorer):
 
 
 def score_func(y_true, y_pred, beta):
+    """Custom metric function. Uses the f-beta score"""
 
     y = pd.concat([pd.DataFrame(y_true, columns=['TARGET']).reset_index(), pd.DataFrame(y_pred, columns=['Prediction'])], axis=1)
     #display(y)
@@ -172,7 +188,14 @@ def score_func(y_true, y_pred, beta):
 
 
 def local_feat_imp(idx, X_train, X_test, y_test, categorical_features_idxs, categorical_names_dict, model):
-
+    """Computes the local feature importances with LIME of a given individual in the data set
+    X_train : training dataset
+    X_test, y_test : test dataset
+    idx : index of the individual to be evaluated. Picked in the test dataset
+    categorical_features_idxs : list of the indices of the categorical features in the dataset
+    categorical_names_dict : map of the categorical features labels
+    """
+    
     explainer = lime_tabular.LimeTabularExplainer(
         X_train.values,
         mode='classification',
@@ -195,4 +218,4 @@ def local_feat_imp(idx, X_train, X_test, y_test, categorical_features_idxs, cate
 
     exp.show_in_notebook()
 
-    return exp
+    return explainer, exp
