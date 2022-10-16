@@ -101,7 +101,7 @@ def label_enc(df, list_feat_idx):
         df.iloc[:, [feature]] = le.transform(df.iloc[:, [feature]].values.ravel())
 
         transformers_dict[df.columns.tolist()[feature]] = le
-        df.iloc[:, [feature]] = df.iloc[:, [feature]].astype('category') # set the feature as a category in the dataframe
+        #df[feature].astype('category') # set the feature as a category in the dataframe
 
         
 
