@@ -160,34 +160,8 @@ def train_model(data, classifier, par_grid, scorer):
 
 
 
-def score_func(y_true, y_pred, beta):
-    """Custom metric function. Uses the f-beta score"""
 
-    y = pd.concat([pd.DataFrame(y_true, columns=['TARGET']).reset_index(), pd.DataFrame(y_pred, columns=['Prediction'])], axis=1)
-    #display(y)
-
-    A = y[(y.TARGET==1) & (y.Prediction==1)].count()[0] # correctly predicted as able to pay
-    B = y[(y.TARGET==0) & (y.Prediction==1)].count()[0] # predicted as able to pay, but unable in reality -> major error, big coeff
-    C = y[(y.TARGET==1) & (y.Prediction==0)].count()[0] # predicted as unable to pay, but able in reality -> minor error, small coeff
-    D = y[(y.TARGET==0) & (y.Prediction==0)].count()[0] # correctly predicted as unable to pay
-
-    print('Total count: ', len(y))
-    print("Correctly predicted as able to pay :", A, "/", y.loc[y['TARGET']==1]['TARGET'].count())
-    print("Predicted as unable to pay, but able in reality :", C)
-    print("Correctly predicted as unable to pay :", D, "/", y.loc[y['TARGET']==0]['TARGET'].count())
-    print("Predicted as able to pay, but unable in reality :", B)    
-    
-    
-    score = fbeta_score(y_true, y_pred, beta=beta)
-    print("beta: ", beta)
-    print('fbeta score: ', score)
-    return score
-
-
-
-
-
-def local_feat_imp(idx, X_train, X_test, y_test, categorical_features_idxs, categorical_names_dict, model):
+def local_feat_imp(idx, X_train, X_test, y_test, categorical_features_idxs, categorical_names_dict, model, threshold):
     """Computes the local feature importances with LIME of a given individual in the data set
     X_train : training dataset
     X_test, y_test : test dataset
@@ -205,7 +179,8 @@ def local_feat_imp(idx, X_train, X_test, y_test, categorical_features_idxs, cate
         class_names=[0, 1]
     )
 
-    pred = model.predict(X_test.loc[idx].values.reshape(1, -1))
+    pred_proba = model.predict_proba(X_test.loc[idx].values.reshape(1,-1))[0][1]
+    pred = 1 if pred_proba > threshold else 0
 
     print("Prediction : ", pred)
     print("Actual :     ", y_test[idx])
