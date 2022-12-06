@@ -1,4 +1,4 @@
-# OpenClassrooms_Projet7
+# OpenClassrooms_Project7_main
 
 
 This project is an online scoring application to estimate whether a bank client will be able to repay a credit. The decision is made using a Machine Learning (ML) model trained on data that can be found at https://www.kaggle.com/c/home-credit-default-risk/data . 
